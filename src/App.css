@@ -1,0 +1,96 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #121212;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+.app {
+  padding: 40px;
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 30px;
+  font-size: 3rem;
+}
+
+.search-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.search-container input {
+  width: 300px;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.search-container button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #ff3d00;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.search-container button:hover {
+  opacity: 0.9;
+}
+
+.movies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.movie-card {
+  background: #1f1f1f;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s;
+}
+
+.movie-card:hover {
+  transform: scale(1.03);
+}
+
+.movie-card img {
+  width: 100%;
+  height: 330px;
+  object-fit: cover;
+}
+
+.movie-info {
+  padding: 15px;
+}
+
+.movie-info h3 {
+  margin-bottom: 10px;
+}
+
+.movie-info p {
+  margin-bottom: 8px;
+}
+
+.movie-info span {
+  background: #333;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.error {
+  color: red;
+}
