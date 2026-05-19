@@ -15,7 +15,7 @@ import CinePet from "./components/CinePet";
 
 import type { Movie, ApiResponse } from "./types";
 
-const API_KEY = "6caa9e57";
+const API_KEY = "cd331034";
 
 const NEW_RELEASE_TITLES = [
   "Dune: Part Two",
