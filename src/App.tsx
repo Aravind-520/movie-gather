@@ -15,7 +15,20 @@ import CinePet from "./components/CinePet";
 
 import type { Movie, ApiResponse } from "./types";
 
-const API_KEY = "cd331034";
+const API_KEY = import.meta.env.VITE_OMDB_API_KEY || "cb331034";
+const OMDB_API_URL = "https://www.omdbapi.com/";
+const OMDB_CACHE_PREFIX = "movie-gather:omdb:";
+const OMDB_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+
+type OmdbMovieResponse = Movie & {
+  Response?: string;
+  Error?: string;
+};
+
+interface CachedOmdbValue<T> {
+  data: T;
+  expiresAt: number;
+}
 
 const NEW_RELEASE_TITLES = [
   "Dune: Part Two",
@@ -53,6 +66,104 @@ const createFallbackMovie = (
   Type: "movie",
   imdbRating: "N/A",
 });
+
+const buildOmdbCacheKey = (params: Record<string, string>) => {
+  const normalizedParams = Object.entries(params)
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, value]) => `${key}:${value.trim().toLowerCase()}`)
+    .join("|");
+
+  return `${OMDB_CACHE_PREFIX}${normalizedParams}`;
+};
+
+const readOmdbCache = <T,>(cacheKey: string): T | null => {
+  let cachedValue: string | null;
+
+  try {
+    cachedValue = window.localStorage.getItem(cacheKey);
+  } catch {
+    return null;
+  }
+
+  if (!cachedValue) {
+    return null;
+  }
+
+  try {
+    const parsedValue = JSON.parse(cachedValue) as CachedOmdbValue<T>;
+
+    if (parsedValue.expiresAt > Date.now()) {
+      return parsedValue.data;
+    }
+  } catch {
+    // Bad cache values are ignored and replaced by the next successful request.
+  }
+
+  try {
+    window.localStorage.removeItem(cacheKey);
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const writeOmdbCache = <T,>(cacheKey: string, data: T) => {
+  const payload: CachedOmdbValue<T> = {
+    data,
+    expiresAt: Date.now() + OMDB_CACHE_TTL_MS,
+  };
+
+  try {
+    window.localStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch {
+    // Storage can fail in private browsing or when quota is full; API still works.
+  }
+};
+
+const fetchOmdb = async <T extends { Response?: string; Error?: string }>(
+  params: Record<string, string>
+) => {
+  const cacheKey = buildOmdbCacheKey(params);
+  const cachedValue = readOmdbCache<T>(cacheKey);
+
+  if (cachedValue) {
+    return cachedValue;
+  }
+
+  const searchParams = new URLSearchParams({
+    apikey: API_KEY,
+    ...params,
+  });
+  const response = await fetch(`${OMDB_API_URL}?${searchParams.toString()}`);
+
+  if (!response.ok) {
+    throw new Error(`OMDb request failed with status ${response.status}`);
+  }
+
+  const data = (await response.json()) as T;
+  const isRequestLimitError =
+    data.Response === "False" && data.Error?.toLowerCase().includes("request limit");
+
+  if (!isRequestLimitError) {
+    writeOmdbCache(cacheKey, data);
+  }
+
+  return data;
+};
+
+const fetchMovieByTitle = async (title: string) => {
+  try {
+    const data = await fetchOmdb<OmdbMovieResponse>({
+      plot: "short",
+      t: title,
+    });
+
+    return data.Response === "True" ? data : null;
+  } catch {
+    return null;
+  }
+};
 
 const CATEGORIES = [
   "Action",
@@ -497,13 +608,7 @@ function App() {
       try {
         const releases = await Promise.all(
           NEW_RELEASE_TITLES.map(async (title) => {
-            const response = await fetch(
-              `https://www.omdbapi.com/?apikey=${API_KEY}&t=${encodeURIComponent(
-                title
-              )}&plot=short`
-            );
-            const data: Movie & { Response?: string } = await response.json();
-            return data.Response === "True" ? data : null;
+            return fetchMovieByTitle(title);
           })
         );
 
@@ -520,6 +625,13 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (
+      !["top-rated", "top-rated-detail"].includes(activePage) ||
+      topRatedSections.length
+    ) {
+      return;
+    }
+
     const fetchTopRatedSections = async () => {
       try {
         setTopRatedLoading(true);
@@ -528,15 +640,8 @@ function App() {
           TOP_RATED_GROUPS.map(async (group) => {
             const moviesForGroup = await Promise.all(
               group.titles.map(async (title, index) => {
-                const response = await fetch(
-                  `https://www.omdbapi.com/?apikey=${API_KEY}&t=${encodeURIComponent(
-                    title
-                  )}&plot=short`
-                );
-                const data: Movie & { Response?: string } = await response.json();
-                return data.Response === "True"
-                  ? data
-                  : createFallbackMovie(title, index, group.id);
+                const movie = await fetchMovieByTitle(title);
+                return movie ?? createFallbackMovie(title, index, group.id);
               })
             );
 
@@ -558,7 +663,7 @@ function App() {
     };
 
     fetchTopRatedSections();
-  }, []);
+  }, [activePage, topRatedSections.length]);
 
   const runMovieSearch = useCallback(async (query: string) => {
     const requestId = searchRequestId.current + 1;
@@ -574,13 +679,7 @@ function App() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(
-        `https://www.omdbapi.com/?apikey=${API_KEY}&s=${encodeURIComponent(
-          query
-        )}`
-      );
-
-      const data: ApiResponse = await response.json();
+      const data = await fetchOmdb<ApiResponse>({ s: query });
 
       if (requestId !== searchRequestId.current) {
         return;
@@ -618,13 +717,7 @@ function App() {
     try {
       const genreResults = await Promise.all(
         GENRE_TITLES[genre].map(async (title) => {
-          const response = await fetch(
-            `https://www.omdbapi.com/?apikey=${API_KEY}&t=${encodeURIComponent(
-              title
-            )}&plot=short`
-          );
-          const data: Movie & { Response?: string } = await response.json();
-          return data.Response === "True" ? data : null;
+          return fetchMovieByTitle(title);
         })
       );
 
