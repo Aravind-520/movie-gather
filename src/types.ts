@@ -4,6 +4,10 @@ export interface Movie {
   Year: string;
   Poster: string;
   Type: string;
+  Genre?: string;
+  Plot?: string;
+  imdbRating?: string;
+  Runtime?: string;
 }
 
 export interface ApiResponse {

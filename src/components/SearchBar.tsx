@@ -13,7 +13,7 @@ const SearchBar = ({
     <div className="search-container">
       <input
         type="text"
-        placeholder="Search movies..."
+        placeholder="Search titles, actors, genres"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         onKeyDown={(e) => {
@@ -23,7 +23,9 @@ const SearchBar = ({
         }}
       />
 
-      <button onClick={onSearch}>Search</button>
+      <button onClick={onSearch} aria-label="Search">
+        <span>Search</span>
+      </button>
     </div>
   );
 };
